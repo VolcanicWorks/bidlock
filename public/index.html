@@ -360,6 +360,7 @@ pre{background:var(--table-2);border:1px solid var(--line);border-radius:10px;pa
 'use strict';
 const RULES = "Everyone holds the same 13 chips, numbered 1 to 13. Each round a prize card from -4 to +9 is turned up and all players secretly lock in one chip at the same time. Any chip that matches another player's chip clashes and is void. If the prize is positive the highest surviving chip takes it; if it is negative the lowest surviving chip gets stuck with it. If every chip clashes, the prize stays and the next card is added to it. Spent chips are gone for good and every hand is public, so you can always see what your rivals have left. Highest total after 13 rounds wins.";
 const $ = id => document.getElementById(id);
+const TOUCH = window.matchMedia('(pointer: coarse)').matches;
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const rim = v => `hsl(${190 - (v - 1) * 15} 62% ${v > 9 ? 52 : 46}%)`;
 function chipEl(v, cls = '', tag = 'div') {
@@ -666,7 +667,7 @@ function renderHand(st) {
     c.setAttribute('aria-pressed', String(v === (locked ?? selected)));
     c.setAttribute('aria-label', have ? `Chip ${v}` : `Chip ${v}, spent`);
     if (locked != null && v === locked) c.classList.add('win');
-    c.onclick = () => { selected = v; sfx.pick(); renderHand(S); };
+    c.onclick = () => { if (selected === v && TOUCH) return lockIn(); selected = v; sfx.pick(); renderHand(S); };
     c.ondblclick = () => { selected = v; lockIn(); };
     const holders = others.filter(p => p.chips.includes(v)).length;
     let hint = '', cls = 'hint';
@@ -685,7 +686,7 @@ function renderHand(st) {
     btn.disabled = selected == null; btn.textContent = selected == null ? 'Lock in' : `Lock in ${selected}`;
     $('handMsg').textContent = selected == null
       ? 'Pick a chip. Your rivals’ remaining chips are shown on their seats.'
-      : 'Double-click a chip or press Enter to lock it in. Keys 1-9, 0 = 10, Q/W/E = 11/12/13.';
+      : (TOUCH ? 'Tap Lock in, or tap the chip again, to confirm.' : 'Double-click a chip or press Enter to lock it in. Keys 1-9, 0 = 10, Q/W/E = 11/12/13.');
   }
 }
 async function lockIn() {
