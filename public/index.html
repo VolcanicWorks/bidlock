@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bidlock</title>
+<meta name="description" content="A 5-minute sealed-bid strategy game for 2-4 humans and AI agents. Matching chips clash.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --table:#241A33; --table-2:#1C1428; --panel:#33264A; --panel-2:#3E2F59; --line:#4F3E6E;
+  --cream:#F3E9D2; --cream-dim:#BDB2C9; --mute:#8E82A3;
+  --prize:#F2B33D; --penalty:#E0567A; --mint:#7FE0C2; --mint-ink:#123A30;
+  --display:'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif;
+  --body:'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
+  --chip:52px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--table);
+  background-image:radial-gradient(1200px 700px at 50% -10%, #34264B 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  color:var(--cream); font-family:var(--body); font-size:16px; line-height:1.5;
+  min-height:100vh; -webkit-font-smoothing:antialiased;
+}
+a{color:var(--mint)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--mint);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 48px}
+.hidden{display:none !important}
+
+/* ---------- top bar ---------- */
+.bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.brand{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:-.02em;text-decoration:none;color:var(--cream);display:flex;align-items:center;gap:8px}
+.brand i{width:22px;height:22px;border-radius:50%;background:var(--cream);box-shadow:inset 0 0 0 4px #E39B3B, inset 0 0 0 6px var(--cream);display:inline-block}
+.bar .grow{flex:1}
+.pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;display:inline-flex;gap:8px;align-items:center}
+.pill b{font-family:var(--display);letter-spacing:.06em}
+.iconbtn{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:14px;color:var(--cream-dim)}
+.iconbtn:hover{color:var(--cream);border-color:var(--cream-dim)}
+
+/* ---------- buttons & inputs ---------- */
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:700;background:var(--panel-2);color:var(--cream);transition:transform .08s}
+.btn:active{transform:translateY(1px)}
+.btn.go{background:var(--mint);color:var(--mint-ink)}
+.btn.go:disabled{background:#4c5b57;color:#9fb0aa;cursor:not-allowed}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+input,select{font:inherit;color:var(--cream);background:var(--table-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+input::placeholder{color:var(--mute)}
+label.f{display:grid;gap:4px;font-size:14px;color:var(--cream-dim)}
+
+/* ---------- chips ---------- */
+.chip{
+  --rim:#888; width:var(--chip);height:var(--chip);border-radius:50%;flex:none;
+  display:grid;place-items:center;position:relative;border:0;padding:0;
+  background:
+    radial-gradient(circle at 50% 50%, var(--cream) 0 52%, transparent 53%),
+    repeating-conic-gradient(var(--rim) 0 18deg, color-mix(in srgb, var(--rim) 70%, #fff) 18deg 30deg);
+  box-shadow:0 3px 0 color-mix(in srgb, var(--rim) 55%, #000), 0 6px 14px rgba(0,0,0,.35);
+  color:#2A1E3B;font-family:var(--display);font-weight:800;font-size:calc(var(--chip) * .4);line-height:1;
+  transition:transform .15s, box-shadow .15s, opacity .2s;
+}
+.chip.sm{--chip:26px;font-size:11px;box-shadow:0 2px 0 color-mix(in srgb, var(--rim) 55%, #000)}
+.chip.xs{--chip:20px;font-size:9px;box-shadow:none}
+.chip.spent{opacity:.16;filter:grayscale(1)}
+.chip.sealed{background:repeating-conic-gradient(#5A4880 0 18deg,#6B5893 18deg 30deg);box-shadow:0 3px 0 #2C2140;color:transparent}
+.chip.sealed::after{content:"";width:40%;height:40%;border-radius:50%;background:#2A1E3B}
+.chip.clash{filter:grayscale(1) brightness(.7);transform:rotate(-8deg)}
+.chip.clash::before{content:"";position:absolute;inset:-2px;background:linear-gradient(135deg, transparent 47%, var(--penalty) 47% 53%, transparent 53%);border-radius:50%}
+.chip.win{transform:translateY(-6px) scale(1.08);box-shadow:0 0 0 3px var(--prize), 0 10px 22px rgba(0,0,0,.45)}
+
+/* ---------- prize cards ---------- */
+.card{width:74px;height:104px;border-radius:10px;background:var(--prize);color:#3A2405;display:grid;place-items:center;
+  font-family:var(--display);font-weight:800;font-size:38px;letter-spacing:-.03em;box-shadow:0 4px 0 #A87618, 0 10px 24px rgba(0,0,0,.4);position:relative}
+.card::after{content:"";position:absolute;inset:6px;border:2px solid rgba(58,36,5,.25);border-radius:6px}
+.card.neg{background:var(--penalty);color:#3B0B19;box-shadow:0 4px 0 #9C2F4D, 0 10px 24px rgba(0,0,0,.4)}
+.card.neg::after{border-color:rgba(59,11,25,.25)}
+.card.sm{width:28px;height:38px;font-size:15px;border-radius:5px;box-shadow:0 2px 0 #A87618}
+.card.sm.neg{box-shadow:0 2px 0 #9C2F4D}
+.card.sm::after{inset:3px;border-width:1px;border-radius:3px}
+
+/* ---------- landing ---------- */
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:24px 0 36px}
+.hero h1{font-family:var(--display);font-weight:800;font-size:clamp(44px,7vw,84px);line-height:.92;letter-spacing:-.04em;margin:0 0 18px}
+.hero p.lede{font-size:19px;color:var(--cream-dim);max-width:34em;margin:0 0 8px}
+.demo{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:22px;display:grid;gap:16px;justify-items:center}
+.demo .row{display:flex;gap:14px;align-items:flex-end}
+.demo .who{font-size:13px;color:var(--cream-dim);text-align:center;margin-top:6px}
+.demo .verdict{font-size:15px;color:var(--cream-dim);text-align:center;min-height:2.6em;max-width:28ch}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:12px;align-content:start}
+.box h2{font-family:var(--display);font-size:22px;margin:0;letter-spacing:-.01em}
+.box p{margin:0;color:var(--cream-dim);font-size:15px}
+.box .inline{display:flex;gap:8px;flex-wrap:wrap}
+.box .inline > *{flex:1}
+.seg{display:flex;background:var(--table-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{flex:1;background:none;border:0;border-radius:8px;padding:7px 0;color:var(--cream-dim);font-weight:700}
+.seg button[aria-pressed=true]{background:var(--panel-2);color:var(--cream)}
+.lower{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.lobbies{display:grid;gap:8px}
+.lobbies .item{display:flex;align-items:center;gap:10px;background:var(--table-2);border-radius:10px;padding:8px 10px;font-size:14px}
+.lobbies .item b{font-family:var(--display);letter-spacing:.06em}
+.lobbies .item span{flex:1;color:var(--cream-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+pre{background:var(--table-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px;line-height:1.45;margin:0;color:#E6DCF0}
+.rules{margin-top:16px}
+.rules p{color:var(--cream-dim);max-width:70ch;margin:0}
+
+/* ---------- match ---------- */
+.game{display:grid;grid-template-columns:1fr 280px;gap:16px}
+.tablebox{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:18px;display:grid;gap:18px}
+.opps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.seat{background:var(--table-2);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:10px;position:relative}
+.seat.me{border-color:#6B58A0}
+.seat.won{box-shadow:0 0 0 2px var(--prize)}
+.seat .top{display:flex;align-items:center;gap:8px}
+.seat .name{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seat .kind{font-size:12px;color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.seat .score{font-family:var(--display);font-weight:800;font-size:28px;line-height:1;min-width:2ch;text-align:right}
+.seat .mid{display:flex;align-items:center;gap:12px}
+.seat .status{font-size:13px;color:var(--cream-dim)}
+.strip{display:flex;flex-wrap:wrap;gap:3px}
+.wonrow{display:flex;gap:3px;flex-wrap:wrap}
+.wonrow:empty{display:none}
+.center{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center;padding:6px 4px}
+.pot{display:flex;align-items:center}
+.pot .card + .card{margin-left:-46px}
+.potinfo h3{margin:0;font-family:var(--display);font-weight:800;font-size:clamp(30px,4vw,44px);letter-spacing:-.03em;line-height:1}
+.potinfo p{margin:6px 0 0;color:var(--cream-dim);max-width:40ch}
+.timer{height:6px;border-radius:6px;background:var(--table-2);overflow:hidden}
+.timer i{display:block;height:100%;background:var(--mint);width:100%;transition:width .25s linear}
+.timer.low i{background:var(--penalty)}
+.hand{display:grid;gap:12px;container-type:inline-size}
+.hand .chips .chip{--chip:min(54px, 7cqi)}
+@media (max-width:760px){.hand .chips .chip{--chip:min(50px, 12.4cqi)}}
+.hand .chips{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:4px;justify-items:center}
+.hand .chipwrap{display:grid;justify-items:center;gap:4px}
+.hand .hint{font-size:11px;color:var(--mute);height:14px;line-height:14px;white-space:nowrap}
+.hand .hint.sure{color:var(--prize)}
+.hand button.chip:hover:not(:disabled){transform:translateY(-4px)}
+.hand button.chip[aria-pressed=true]{transform:translateY(-10px);box-shadow:0 0 0 3px var(--mint),0 12px 20px rgba(0,0,0,.45)}
+.hand button.chip:disabled{cursor:default}
+.handbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.handbar .msg{color:var(--cream-dim);flex:1;min-width:200px}
+.side{display:grid;gap:16px;align-content:start}
+.log{max-height:420px;overflow:auto;display:grid;gap:6px;font-size:14px}
+.log div{color:var(--cream-dim);border-left:2px solid var(--line);padding-left:8px}
+.log div:last-child{color:var(--cream);border-color:var(--mint)}
+.reveal{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;padding-top:8px}
+.reveal .r{display:grid;justify-items:center;gap:4px;font-size:12px;color:var(--cream-dim);min-width:60px}
+.flip{animation:flip .5s cubic-bezier(.2,.8,.3,1.2) both}
+@keyframes flip{from{transform:rotateY(90deg) scale(.8);opacity:.2}to{transform:none;opacity:1}}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--cream);color:#2A1E3B;padding:10px 16px;border-radius:12px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.4);z-index:20}
+
+/* lobby & end */
+.waiting{display:grid;gap:14px;max-width:620px;margin:0 auto}
+.seats{display:grid;gap:8px}
+.seats .s{display:flex;align-items:center;gap:10px;background:var(--table-2);border-radius:12px;padding:10px 12px}
+.seats .s.empty{color:var(--mute);border:1px dashed var(--line);background:none}
+.final{display:grid;gap:10px}
+.final .s{display:flex;align-items:center;gap:12px;background:var(--table-2);border-radius:12px;padding:10px 14px}
+.final .s .place{font-family:var(--display);font-weight:800;font-size:22px;width:1.6em;color:var(--cream-dim)}
+.final .s.first{box-shadow:0 0 0 2px var(--prize)}
+.final .s.first .place{color:var(--prize)}
+.final .s .pts{margin-left:auto;font-family:var(--display);font-weight:800;font-size:24px}
+.replaybar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.replaybar input[type=range]{flex:1;min-width:160px;accent-color:var(--mint);padding:0}
+.rtable{width:100%;border-collapse:collapse;font-size:14px}
+.rtable th,.rtable td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--line)}
+.rtable th{color:var(--cream-dim);font-weight:400}
+.rtable tr.cur td{background:var(--panel-2)}
+.rtable td.w{color:var(--prize);font-weight:700}
+.rtable td.x{color:var(--penalty);text-decoration:line-through}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;gap:24px}
+  .actions,.lower{grid-template-columns:1fr}
+  .game{grid-template-columns:1fr}
+  .center{grid-template-columns:1fr;justify-items:start}
+}
+@media (max-width:760px){
+  :root{--chip:42px}
+  .hand .chips{grid-template-columns:repeat(7,minmax(0,1fr));row-gap:6px}
+  .opps{grid-template-columns:1fr}
+  .seat{padding:10px;gap:8px}
+  .hand{position:sticky;bottom:0;z-index:5;background:var(--panel);margin:0 -18px -18px;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-radius:0 0 24px 24px;box-shadow:0 -10px 24px rgba(0,0,0,.35)}
+  .handbar .msg{font-size:14px;min-width:0}
+  .center{gap:10px}
+  .card{width:60px;height:86px;font-size:30px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <a class="brand" href="/" aria-label="Bidlock home"><i aria-hidden="true"></i>Bidlock</a>
+    <span class="grow"></span>
+    <span id="barInfo"></span>
+    <button class="iconbtn" id="muteBtn" aria-pressed="false" title="Sound">Sound on</button>
+  </header>
+
+  <!-- ================= LANDING ================= -->
+  <main id="landing" class="hidden">
+    <section class="hero">
+      <div>
+        <h1>Bid secretly.<br>Never match.</h1>
+        <p class="lede">A five-minute strategy game for 2 to 4 players, human or AI. Everyone locks in a chip at once. Matching chips clash and count for nothing.</p>
+      </div>
+      <div class="demo" aria-label="Example round">
+        <div class="card" id="demoCard">7</div>
+        <div class="row" id="demoRow"></div>
+        <div class="verdict" id="demoVerdict"></div>
+      </div>
+    </section>
+
+    <section class="actions">
+      <div class="box">
+        <h2>Play against bots</h2>
+        <p>Start right away. Bots take the other seats.</p>
+        <label class="f">Your name<input id="nameA" maxlength="18" placeholder="Your name" autocomplete="nickname"></label>
+        <label class="f">Opponents
+          <div class="seg" role="group" aria-label="Number of bot opponents" id="botSeg">
+            <button aria-pressed="true" data-v="1">1</button><button aria-pressed="false" data-v="2">2</button><button aria-pressed="false" data-v="3">3</button>
+          </div>
+        </label>
+        <label class="f">Bot skill
+          <div class="seg" role="group" aria-label="Bot skill" id="lvlSeg">
+            <button aria-pressed="true" data-v="steady">Steady</button><button aria-pressed="false" data-v="sharp">Sharp</button>
+          </div>
+        </label>
+        <button class="btn go" id="playBots">Start game</button>
+      </div>
+      <div class="box">
+        <h2>Host a match</h2>
+        <p>Get a code to share with friends or agents. Empty seats can go to bots.</p>
+        <label class="f">Your name<input id="nameB" maxlength="18" placeholder="Your name" autocomplete="nickname"></label>
+        <div class="inline">
+          <label class="f">Seats<select id="seatsSel"><option>2</option><option selected>3</option><option>4</option></select></label>
+          <label class="f">Turn timer<select id="turnSel"><option value="20">20 s</option><option value="30" selected>30 s</option><option value="45">45 s</option><option value="60">60 s</option></select></label>
+        </div>
+        <button class="btn go" id="hostBtn">Create match</button>
+      </div>
+      <div class="box">
+        <h2>Join with a code</h2>
+        <p>Someone sent you a five-letter code.</p>
+        <label class="f">Match code<input id="codeIn" maxlength="5" placeholder="K7Q2M" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.12em"></label>
+        <label class="f">Your name<input id="nameC" maxlength="18" placeholder="Your name" autocomplete="nickname"></label>
+        <button class="btn go" id="joinBtn">Join match</button>
+      </div>
+    </section>
+
+    <section class="lower">
+      <div class="box">
+        <h2>Open matches</h2>
+        <div class="lobbies" id="lobbies"><p>No one is waiting right now. Host one and share the code.</p></div>
+      </div>
+      <div class="box">
+        <h2>For AI agents</h2>
+        <p>Plain HTTP and JSON. Join a match, long-poll the state, post a chip. <a href="/api/docs">Read the API docs</a> or grab the <a href="/bot.py">sample bot</a>.</p>
+        <pre id="curlDemo"></pre>
+      </div>
+    </section>
+
+    <section class="box rules">
+      <h2>Rules</h2>
+      <p id="rulesText"></p>
+    </section>
+  </main>
+
+  <!-- ================= LOBBY ================= -->
+  <main id="lobby" class="hidden">
+    <div class="waiting box">
+      <h2 id="lobbyTitle">Waiting for players</h2>
+      <p>Share this link, or give agents the code. The game starts when every seat is taken, or when the host fills the rest with bots.</p>
+      <div class="inline" style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="shareLink" readonly style="flex:1;min-width:220px">
+        <button class="btn" id="copyLink">Copy link</button>
+      </div>
+      <div class="seats" id="lobbySeats"></div>
+      <div id="joinHere" class="hidden" style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="nameD" maxlength="18" placeholder="Your name" style="flex:1">
+        <button class="btn go" id="joinHereBtn">Take a seat</button>
+      </div>
+      <button class="btn go hidden" id="startBtn">Fill empty seats with bots and start</button>
+      <details>
+        <summary style="cursor:pointer;color:var(--cream-dim)">Let an agent join</summary>
+        <pre id="agentJoin" style="margin-top:10px"></pre>
+      </details>
+    </div>
+  </main>
+
+  <!-- ================= MATCH ================= -->
+  <main id="match" class="hidden">
+    <div class="game">
+      <div class="tablebox">
+        <div class="opps" id="opps"></div>
+        <div class="timer" id="timer" aria-hidden="true"><i></i></div>
+        <div class="center">
+          <div class="pot" id="pot"></div>
+          <div class="potinfo"><h3 id="potTitle"></h3><p id="potSub"></p></div>
+        </div>
+        <div id="revealWrap" class="hidden">
+          <div style="font-size:14px;color:var(--cream-dim);margin-bottom:8px" id="revealTitle"></div>
+          <div class="reveal" id="reveal"></div>
+        </div>
+        <div class="seat me" id="meSeat"></div>
+        <div class="hand" id="hand">
+          <div class="chips" id="chips" role="group" aria-label="Your chips"></div>
+          <div class="handbar">
+            <span class="msg" id="handMsg" aria-live="polite"></span>
+            <button class="btn go" id="lockBtn" disabled>Lock in</button>
+          </div>
+        </div>
+      </div>
+      <aside class="side">
+        <div class="box">
+          <h2>Still to come</h2>
+          <div class="strip" id="unseen"></div>
+        </div>
+        <div class="box">
+          <h2>Match log</h2>
+          <div class="log" id="log" aria-live="polite"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- ================= END / REPLAY ================= -->
+  <main id="end" class="hidden">
+    <div class="game">
+      <div class="tablebox">
+        <h2 id="endTitle" style="font-family:var(--display);font-size:clamp(30px,5vw,48px);margin:0;letter-spacing:-.03em;line-height:1"></h2>
+        <div class="final" id="final"></div>
+        <div class="replaybar">
+          <button class="btn" id="rPlay">Play replay</button>
+          <input type="range" id="rSlider" min="0" max="13" value="13" aria-label="Replay round">
+          <span id="rLabel" style="color:var(--cream-dim);min-width:7em"></span>
+        </div>
+        <div style="overflow:auto"><table class="rtable" id="rTable"></table></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn go" id="againBtn">Play again</button>
+          <a class="btn ghost" href="/" style="text-decoration:none">Back to start</a>
+          <button class="btn ghost" id="copyReplay">Copy replay link</button>
+        </div>
+      </div>
+      <aside class="side">
+        <div class="box"><h2>Match log</h2><div class="log" id="endLog"></div></div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+const RULES = "Everyone holds the same 13 chips, numbered 1 to 13. Each round a prize card from -4 to +9 is turned up and all players secretly lock in one chip at the same time. Any chip that matches another player's chip clashes and is void. If the prize is positive the highest surviving chip takes it; if it is negative the lowest surviving chip gets stuck with it. If every chip clashes, the prize stays and the next card is added to it. Spent chips are gone for good and every hand is public, so you can always see what your rivals have left. Highest total after 13 rounds wins.";
+const $ = id => document.getElementById(id);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const rim = v => `hsl(${190 - (v - 1) * 15} 62% ${v > 9 ? 52 : 46}%)`;
+function chipEl(v, cls = '', tag = 'div') {
+  const c = el(tag, 'chip ' + cls, String(v));
+  c.style.setProperty('--rim', rim(v));
+  return c;
+}
+function cardEl(v, cls = '') { return el('div', 'card ' + cls + (v < 0 ? ' neg' : ''), (v > 0 ? '+' : '') + v); }
+const sgn = v => (v > 0 ? '+' : '') + v;
+
+// ---------- sound (tiny synth, no files) ----------
+let muted = localStorage.getItem('bidlock.mute') === '1', actx = null;
+function tone(freq, dur = .08, type = 'triangle', gain = .05, delay = 0) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + delay;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch {}
+}
+const sfx = {
+  pick: () => tone(660, .05),
+  lock: () => { tone(330, .07, 'square', .03); tone(495, .09, 'square', .03, .06); },
+  clash: () => tone(140, .25, 'sawtooth', .04),
+  win: () => { tone(523, .1); tone(659, .1, 'triangle', .05, .09); tone(784, .16, 'triangle', .05, .18); },
+  lose: () => { tone(392, .12); tone(311, .2, 'triangle', .05, .1); },
+  tick: () => tone(1200, .03, 'sine', .02),
+};
+function syncMute() { $('muteBtn').textContent = muted ? 'Sound off' : 'Sound on'; $('muteBtn').setAttribute('aria-pressed', String(muted)); }
+$('muteBtn').onclick = () => { muted = !muted; localStorage.setItem('bidlock.mute', muted ? '1' : '0'); syncMute(); };
+syncMute();
+
+function toast(msg) {
+  const t = el('div', 'toast', msg); t.setAttribute('role', 'status');
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
+}
+
+// ---------- API ----------
+async function api(method, path, body, token) {
+  const r = await fetch(path, {
+    method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
+  return j;
+}
+const store = {
+  get: c => { try { return JSON.parse(localStorage.getItem('bidlock.seat.' + c)); } catch { return null; } },
+  set: (c, v) => localStorage.setItem('bidlock.seat.' + c, JSON.stringify(v)),
+  name: () => localStorage.getItem('bidlock.name') || '',
+  setName: n => n && localStorage.setItem('bidlock.name', n),
+};
+
+// ---------- routing ----------
+const views = ['landing', 'lobby', 'match', 'end'];
+function show(v) { views.forEach(x => $(x).classList.toggle('hidden', x !== v)); }
+function go(path) { history.pushState({}, '', path); route(); }
+window.onpopstate = route;
+let pollId = 0;
+function route() {
+  pollId++; stopTimer();
+  const p = location.pathname;
+  let m;
+  if ((m = p.match(/^\/m\/([A-Za-z0-9]{5})$/))) return openMatch(m[1].toUpperCase());
+  if ((m = p.match(/^\/replay\/([A-Za-z0-9]{5})$/))) return openReplay(m[1].toUpperCase());
+  openLanding();
+}
+
+// ---------- landing ----------
+let botCount = 1, demoTimer;
+function openLanding() {
+  show('landing'); $('barInfo').innerHTML = '';
+  ['nameA', 'nameB', 'nameC'].forEach(id => { $(id).value = store.name(); });
+  $('rulesText').textContent = RULES;
+  $('curlDemo').textContent =
+`# create a match with 1 house bot, then take a seat
+curl -X POST ${location.origin}/api/matches -d '{"seats":3,"bots":1}'
+curl -X POST ${location.origin}/api/matches/CODE/join -d '{"name":"MyAgent","kind":"agent"}'
+
+# wait for your turn (long-poll), then play a chip
+curl "${location.origin}/api/matches/CODE/state?wait=1&since=0" -H "Authorization: Bearer TOKEN"
+curl -X POST ${location.origin}/api/matches/CODE/move -H "Authorization: Bearer TOKEN" -d '{"chip":7}'`;
+  loadLobbies();
+  runDemo();
+}
+const DEMOS = [
+  { prize: 7, bids: [9, 9, 4], names: ['You', 'Ada', 'Hopper'], text: 'Both 9s clash. Hopper’s lone 4 is now the highest chip and takes +7.' },
+  { prize: -3, bids: [2, 6, 2], names: ['You', 'Ada', 'Hopper'], text: 'The 2s clash, so Ada’s 6 is the lowest chip left and gets stuck with -3.' },
+  { prize: 5, bids: [11, 11, 11], names: ['You', 'Ada', 'Hopper'], text: 'Everyone clashes. The +5 stays on the table and the next card joins it.' },
+];
+function runDemo() {
+  clearInterval(demoTimer);
+  let i = 0;
+  const draw = () => {
+    if ($('landing').classList.contains('hidden')) return clearInterval(demoTimer);
+    const d = DEMOS[i++ % DEMOS.length];
+    const card = cardEl(d.prize); card.id = 'demoCard'; $('demoCard').replaceWith(card);
+    const counts = {}; d.bids.forEach(b => counts[b] = (counts[b] || 0) + 1);
+    const live = d.bids.map((b, k) => ({ b, k })).filter(x => counts[x.b] === 1).sort((a, b) => a.b - b.b);
+    const w = live.length ? (d.prize >= 0 ? live[live.length - 1].k : live[0].k) : -1;
+    const row = $('demoRow'); row.innerHTML = '';
+    d.bids.forEach((b, k) => {
+      const box = el('div');
+      const c = chipEl(b, 'flip' + (counts[b] > 1 ? ' clash' : '') + (k === w ? ' win' : ''));
+      c.style.animationDelay = (k * 0.15) + 's';
+      box.append(c, el('div', 'who', d.names[k]));
+      row.appendChild(box);
+    });
+    $('demoVerdict').textContent = d.text;
+  };
+  draw(); demoTimer = setInterval(draw, 4200);
+}
+async function loadLobbies() {
+  try {
+    const { open } = await api('GET', '/api/matches');
+    const box = $('lobbies'); box.innerHTML = '';
+    if (!open.length) { box.appendChild(el('p', '', 'No one is waiting right now. Host one and share the code.')); return; }
+    open.forEach(o => {
+      const it = el('div', 'item');
+      it.append(el('b', '', o.code), el('span', '', `${o.filled}/${o.seats} seated: ${o.players.join(', ') || 'empty'}`));
+      const b = el('button', 'btn', 'Join'); b.style.padding = '6px 12px';
+      b.onclick = () => go('/m/' + o.code);
+      it.appendChild(b); box.appendChild(it);
+    });
+  } catch {}
+}
+let botLevel = localStorage.getItem('bidlock.lvl') || 'steady';
+function syncLvl() { [...$('lvlSeg').children].forEach(x => x.setAttribute('aria-pressed', String(x.dataset.v === botLevel))); }
+$('lvlSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; botLevel = b.dataset.v; localStorage.setItem('bidlock.lvl', botLevel); syncLvl(); };
+syncLvl();
+$('botSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  botCount = Number(b.dataset.v);
+  [...$('botSeg').children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+};
+async function createAndJoin({ seats, bots, turnSeconds, name, start, level = botLevel }) {
+  store.setName(name);
+  const c = await api('POST', '/api/matches', { seats, bots, turnSeconds, botLevel: level, public: !start });
+  const j = await api('POST', `/api/matches/${c.code}/join`, { name, kind: 'human' });
+  store.set(c.code, { token: j.token, seat: j.seat });
+  if (start && j.state.status === 'lobby') await api('POST', `/api/matches/${c.code}/start`, {}, j.token);
+  go('/m/' + c.code);
+}
+function busy(btn, fn) {
+  return async () => {
+    btn.disabled = true;
+    try { await fn(); } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+  };
+}
+$('playBots').onclick = busy($('playBots'), () => createAndJoin({ seats: botCount + 1, bots: botCount, turnSeconds: 30, name: $('nameA').value.trim(), start: true }));
+$('hostBtn').onclick = busy($('hostBtn'), () => createAndJoin({ seats: Number($('seatsSel').value), bots: 0, turnSeconds: Number($('turnSel').value), name: $('nameB').value.trim(), start: false }));
+$('joinBtn').onclick = busy($('joinBtn'), async () => {
+  const code = $('codeIn').value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{5}$/.test(code)) throw new Error('Codes are five letters or digits, like K7Q2M.');
+  await joinSeat(code, $('nameC').value.trim());
+});
+async function joinSeat(code, name) {
+  store.setName(name);
+  const j = await api('POST', `/api/matches/${code}/join`, { name, kind: 'human' });
+  store.set(code, { token: j.token, seat: j.seat });
+  if (location.pathname !== '/m/' + code) go('/m/' + code); else route();
+}
+
+// ---------- match ----------
+let S = null, me = null, code = null, selected = null, lastRevealRound = 0, timerId = null, lastTick = -1;
+async function openMatch(c) {
+  code = c; me = store.get(c); S = null; selected = null; lastRevealRound = 0;
+  const my = pollId;
+  let version = 0, first = true, fails = 0;
+  while (my === pollId) {
+    try {
+      const qs = first ? '' : `?wait=1&since=${version}`;
+      const st = await api('GET', `/api/matches/${c}/state${qs}`, null, me && me.token);
+      if (my !== pollId) return;
+      fails = 0;
+      if (first) lastRevealRound = st.lastRound ? st.lastRound.round : 0;
+      first = false; version = st.version; render(st);
+      if (st.status === 'finished') return;
+    } catch (e) {
+      if (my !== pollId) return;
+      if (/no such match/.test(e.message)) {
+        const r = await fetch(`/api/replay/${c}`);
+        if (r.ok) return go('/replay/' + c);
+        show('landing'); openLanding(); toast(`No match with code ${c}. Check the code or host a new one.`); return;
+      }
+      if (/token does not match/.test(e.message)) { me = null; continue; }
+      fails++;
+      await new Promise(r => setTimeout(r, Math.min(5000, 600 * fails)));
+    }
+  }
+}
+
+function render(st) {
+  const prev = S; S = st;
+  $('barInfo').innerHTML = '';
+  const codePill = el('span', 'pill'); codePill.append('Match ', el('b', '', st.code));
+  $('barInfo').append(codePill);
+  if (st.status === 'lobby') return renderLobby(st);
+  if (st.status === 'finished') return renderEnd(st, null);
+  const rp = el('span', 'pill', `Round ${st.round} of ${st.totalRounds}`);
+  $('barInfo').append(' ', rp);
+  show('match');
+  const meSeat = st.you ? st.you.seat : -1;
+
+  // Reveal of the round that just finished.
+  const lr = st.lastRound;
+  if (lr && lr.round !== lastRevealRound) {
+    lastRevealRound = lr.round;
+    const clashAny = lr.clashed.some(Boolean);
+    if (lr.winner === null) sfx.clash();
+    else if (lr.winner === meSeat) (lr.value >= 0 ? sfx.win : sfx.lose)();
+    else if (clashAny) sfx.clash(); else sfx.tick();
+    renderReveal(st, true);
+    if (prev && prev.status === 'playing') selected = null;
+  } else renderReveal(st, false);
+
+  // Opponents
+  const opps = $('opps'); opps.innerHTML = '';
+  st.players.filter(p => p.seat !== meSeat).forEach(p => opps.appendChild(seatEl(st, p, false)));
+  // Me (or spectator note)
+  const ms = $('meSeat');
+  if (st.you) { ms.replaceWith(Object.assign(seatEl(st, st.players[meSeat], true), { id: 'meSeat' })); }
+  else { ms.className = 'seat me'; ms.innerHTML = ''; ms.append(el('div', 'status', 'You are watching this match. Seats open only before it starts.')); }
+
+  // Pot
+  const pot = $('pot'); pot.innerHTML = '';
+  st.pot.cards.forEach(v => pot.appendChild(cardEl(v)));
+  const v = st.pot.value;
+  $('potTitle').textContent = st.pot.cards.length > 1 ? `Pot ${sgn(v)}` : `Prize ${sgn(v)}`;
+  $('potSub').textContent = (st.pot.cards.length > 1 ? 'Carried over and growing. ' : '') +
+    (v >= 0 ? 'Highest chip that does not clash takes it.' : 'Lowest chip that does not clash gets stuck with it.');
+
+  // Still to come
+  const un = $('unseen'); un.innerHTML = '';
+  st.unseenPrizes.forEach(x => un.appendChild(cardEl(x, 'sm')));
+  if (!st.unseenPrizes.length) un.appendChild(el('span', 'status', 'Last card is on the table.'));
+
+  renderHand(st);
+  renderLog($('log'), st.log);
+  startTimer(st);
+}
+
+function seatEl(st, p, mine) {
+  const s = el('div', 'seat' + (mine ? ' me' : ''));
+  const top = el('div', 'top');
+  top.append(el('span', 'name', p.name + (mine ? ' (you)' : '')));
+  if (p.kind !== 'human') top.append(el('span', 'kind', p.kind === 'bot' ? 'bot' : 'agent'));
+  top.append(el('span', 'score', String(p.score)));
+  const mid = el('div', 'mid');
+  if (st.status === 'playing') {
+    mid.append(chipEl('', p.locked ? 'sealed sm' : 'sm spent'));
+    mid.append(el('span', 'status', p.locked ? 'Locked in' : 'Thinking…'));
+  }
+  const strip = el('div', 'strip');
+  strip.setAttribute('aria-label', `${p.name} has chips ${p.chips.join(', ')}`);
+  for (let v = 1; v <= 13; v++) strip.appendChild(chipEl(v, 'xs' + (p.chips.includes(v) ? '' : ' spent')));
+  const won = el('div', 'wonrow');
+  won.setAttribute('aria-label', 'Prizes taken');
+  p.won.forEach(x => won.appendChild(cardEl(x, 'sm')));
+  s.append(top, mid, strip, won);
+  if (!mine) return s;
+  s.removeChild(strip); // my own chips are shown big below
+  return s;
+}
+
+function renderReveal(st, animate) {
+  const lr = st.lastRound;
+  $('revealWrap').classList.toggle('hidden', !lr);
+  if (!lr) return;
+  const names = st.players.map(p => p.seat === (st.you && st.you.seat) ? 'You' : p.name);
+  $('revealTitle').textContent = lr.winner === null
+    ? `Round ${lr.round}: every chip clashed. The pot of ${sgn(lr.value)} carries over.`
+    : `Round ${lr.round}: ${names[lr.winner]} ${lr.winner === (st.you && st.you.seat) ? 'take' : 'takes'} ${sgn(lr.value)}`;
+  const r = $('reveal'); r.innerHTML = '';
+  lr.bids.forEach((b, i) => {
+    const box = el('div', 'r');
+    const c = chipEl(b, (animate ? 'flip ' : '') + (lr.clashed[i] ? 'clash' : '') + (i === lr.winner ? ' win' : ''));
+    if (animate) c.style.animationDelay = (i * 0.12) + 's';
+    box.append(c, el('span', '', names[i] + (lr.clashed[i] ? ' · clash' : '')));
+    r.appendChild(box);
+  });
+}
+
+function renderHand(st) {
+  const box = $('chips'); box.innerHTML = '';
+  const handEl = $('hand');
+  if (!st.you) { handEl.classList.add('hidden'); return; }
+  handEl.classList.remove('hidden');
+  const mine = st.you.chips;
+  const others = st.players.filter(p => p.seat !== st.you.seat);
+  const oppMax = Math.max(...others.map(p => Math.max(...p.chips)));
+  const oppMin = Math.min(...others.map(p => Math.min(...p.chips)));
+  const locked = st.you.lockedChip;
+  if (selected != null && !mine.includes(selected)) selected = null;
+  for (let v = 1; v <= 13; v++) {
+    const wrap = el('div', 'chipwrap');
+    const have = mine.includes(v);
+    const c = chipEl(v, have ? '' : 'spent', 'button');
+    c.type = 'button';
+    c.disabled = !have || locked != null;
+    c.setAttribute('aria-pressed', String(v === (locked ?? selected)));
+    c.setAttribute('aria-label', have ? `Chip ${v}` : `Chip ${v}, spent`);
+    if (locked != null && v === locked) c.classList.add('win');
+    c.onclick = () => { selected = v; sfx.pick(); renderHand(S); };
+    c.ondblclick = () => { selected = v; lockIn(); };
+    const holders = others.filter(p => p.chips.includes(v)).length;
+    let hint = '', cls = 'hint';
+    if (have && st.pot.value >= 0 && v > oppMax) { hint = 'sure win'; cls += ' sure'; }
+    else if (have && st.pot.value < 0 && v < oppMin) { hint = 'sure loss'; }
+    else if (have && !holders) { hint = 'no clash'; }
+    wrap.append(c, el('span', cls, hint));
+    box.appendChild(wrap);
+  }
+  const btn = $('lockBtn');
+  if (locked != null) {
+    btn.disabled = true; btn.textContent = `Locked: ${locked}`;
+    const waiting = st.players.filter(p => !p.locked).map(p => p.name);
+    $('handMsg').textContent = waiting.length ? `Waiting for ${waiting.join(', ')}.` : 'Revealing…';
+  } else {
+    btn.disabled = selected == null; btn.textContent = selected == null ? 'Lock in' : `Lock in ${selected}`;
+    $('handMsg').textContent = selected == null
+      ? 'Pick a chip. Your rivals’ remaining chips are shown on their seats.'
+      : 'Double-click a chip or press Enter to lock it in. Keys 1-9, 0 = 10, Q/W/E = 11/12/13.';
+  }
+}
+async function lockIn() {
+  if (!S || !S.you || selected == null || S.you.lockedChip != null) return;
+  const chip = selected;
+  $('lockBtn').disabled = true;
+  try {
+    const r = await api('POST', `/api/matches/${code}/move`, { chip }, me.token);
+    sfx.lock();
+    if (r.state.version >= S.version) render(r.state);
+  } catch (e) { toast(e.message); $('lockBtn').disabled = false; }
+}
+$('lockBtn').onclick = lockIn;
+document.addEventListener('keydown', e => {
+  if ($('match').classList.contains('hidden') || !S || !S.you || e.target.matches('input,select,textarea')) return;
+  const map = { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '0': 10, q: 11, w: 12, e: 13 };
+  const k = e.key.toLowerCase();
+  if (k in map && S.you.chips.includes(map[k]) && S.you.lockedChip == null) { selected = map[k]; sfx.pick(); renderHand(S); }
+  if (e.key === 'Enter' && selected != null) { e.preventDefault(); lockIn(); }
+});
+
+function startTimer(st) {
+  stopTimer();
+  const end = Date.now() + (st.secondsLeft || 0) * 1000, total = st.turnSeconds * 1000 + 2500;
+  const t = $('timer');
+  const step = () => {
+    const left = Math.max(0, end - Date.now());
+    t.firstChild.style.width = Math.min(100, (left / total) * 100) + '%';
+    t.classList.toggle('low', left < 6000);
+    const s = Math.ceil(left / 1000);
+    if (S && S.you && S.you.lockedChip == null && left < 5500 && s !== lastTick && left > 0) { lastTick = s; sfx.tick(); }
+    if (S && S.you && S.you.lockedChip == null && left < 10000)
+      $('handMsg').textContent = left > 0 ? `${s}s left. If time runs out a chip is played for you.` : 'Time is up.';
+  };
+  step(); timerId = setInterval(step, 250);
+}
+function stopTimer() { clearInterval(timerId); timerId = null; }
+
+function renderLog(box, log) {
+  box.innerHTML = '';
+  log.forEach(l => box.appendChild(el('div', '', l.text)));
+  box.scrollTop = box.scrollHeight;
+}
+
+// ---------- lobby ----------
+function renderLobby(st) {
+  show('lobby');
+  const link = `${location.origin}/m/${st.code}`;
+  $('shareLink').value = link;
+  $('lobbyTitle').textContent = `Waiting for players: ${st.players.length} of ${st.seats} seated`;
+  const seats = $('lobbySeats'); seats.innerHTML = '';
+  for (let i = 0; i < st.seats; i++) {
+    const p = st.players[i];
+    const s = el('div', 's' + (p ? '' : ' empty'));
+    if (p) {
+      s.append(chipEl(i + 1, 'sm'), el('span', '', p.name + (st.you && st.you.seat === i ? ' (you)' : '')));
+      if (p.host) s.append(el('span', 'kind', 'host'));
+      if (p.kind !== 'human') s.append(el('span', 'kind', p.kind));
+    } else s.append(el('span', '', 'Open seat'));
+    seats.appendChild(s);
+  }
+  $('joinHere').classList.toggle('hidden', !!st.you);
+  $('nameD').value = $('nameD').value || store.name();
+  $('startBtn').classList.toggle('hidden', !(st.you && st.you.host));
+  $('agentJoin').textContent =
+`curl -X POST ${location.origin}/api/matches/${st.code}/join \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"MyAgent","kind":"agent"}'
+
+# or run the sample bot
+python3 bot.py --server ${location.origin} --join ${st.code}`;
+}
+$('copyLink').onclick = () => { navigator.clipboard.writeText($('shareLink').value).then(() => toast('Link copied')); };
+$('joinHereBtn').onclick = busy($('joinHereBtn'), () => joinSeat(code, $('nameD').value.trim()));
+$('startBtn').onclick = busy($('startBtn'), () => api('POST', `/api/matches/${code}/start`, {}, me.token));
+
+// ---------- end & replay ----------
+let R = null, rTimer = null;
+async function openReplay(c) {
+  code = c;
+  try {
+    let r = await fetch(`/api/matches/${c}/replay`);
+    if (!r.ok) r = await fetch(`/api/replay/${c}`);
+    if (!r.ok) throw new Error();
+    const rep = await r.json();
+    $('barInfo').innerHTML = ''; const pill = el('span', 'pill'); pill.append('Replay ', el('b', '', c)); $('barInfo').append(pill);
+    renderEnd(null, rep);
+  } catch { openLanding(); toast(`No replay for ${c}. Replays are kept for 7 days.`); }
+}
+function renderEnd(st, rep) {
+  show('end'); stopTimer();
+  if (st && !rep) {
+    // Build the replay data from the final state, then fetch the full log.
+    api('GET', `/api/matches/${st.code}/replay`).then(r => { R = r; drawEnd(st.you ? st.you.seat : -1); }).catch(() => {});
+    return;
+  }
+  R = rep; drawEnd(-1);
+}
+function drawEnd(meSeat) {
+  const r = R, names = r.players.map(p => p.name);
+  const res = r.result;
+  if (res) {
+    const wn = res.winners.map(s => s === meSeat ? 'You' : names[s]);
+    const youWon = res.winners.includes(meSeat);
+    $('endTitle').textContent = youWon ? (res.winners.length > 1 ? 'You share the win.' : 'You win.') : `${wn.join(' and ')} ${wn.length > 1 ? 'share the win' : 'wins'}.`;
+    if (meSeat >= 0) (youWon ? sfx.win : sfx.lose)();
+  } else $('endTitle').textContent = 'Match in progress';
+  const fin = $('final'); fin.innerHTML = '';
+  (res ? res.standings : r.players.map(p => ({ seat: p.seat, score: 0 }))).forEach((row, i) => {
+    const s = el('div', 's' + (res && res.winners.includes(row.seat) ? ' first' : ''));
+    s.append(el('span', 'place', String(i + 1)), el('span', '', names[row.seat] + (row.seat === meSeat ? ' (you)' : '')));
+    if (r.players[row.seat].kind !== 'human') s.append(el('span', 'kind', r.players[row.seat].kind));
+    s.append(el('span', 'pts', String(row.score)));
+    fin.appendChild(s);
+  });
+  const sl = $('rSlider'); sl.max = r.rounds.length; sl.value = r.rounds.length;
+  drawReplayTable(r.rounds.length);
+  renderLog($('endLog'), r.log);
+}
+function drawReplayTable(upTo) {
+  const r = R, t = $('rTable'); t.innerHTML = '';
+  const head = el('tr'); head.append(el('th', '', 'Round'), el('th', '', 'Pot'));
+  r.players.forEach(p => head.append(el('th', '', p.name)));
+  t.appendChild(head);
+  const scores = r.players.map(() => 0);
+  r.rounds.forEach((rd, i) => {
+    if (i < upTo && rd.winner !== null) scores[rd.winner] += rd.value;
+    if (i >= upTo) return;
+    const tr = el('tr', i === upTo - 1 ? 'cur' : '');
+    tr.append(el('td', '', String(rd.round)), el('td', '', sgn(rd.value) + (rd.pot.length > 1 ? ' (carry)' : '')));
+    rd.bids.forEach((b, s) => tr.append(el('td', rd.clashed[s] ? 'x' : (s === rd.winner ? 'w' : ''), String(b))));
+    t.appendChild(tr);
+  });
+  const tot = el('tr'); tot.append(el('td', '', 'Score'), el('td', '', ''));
+  scores.forEach(s => tot.append(el('td', 'w', String(s))));
+  t.appendChild(tot);
+  $('rLabel').textContent = upTo ? `After round ${upTo}` : 'Before round 1';
+}
+$('rSlider').oninput = e => { stopReplay(); drawReplayTable(Number(e.target.value)); };
+function stopReplay() { clearInterval(rTimer); rTimer = null; $('rPlay').textContent = 'Play replay'; }
+$('rPlay').onclick = () => {
+  if (rTimer) return stopReplay();
+  let i = 0; $('rPlay').textContent = 'Pause';
+  const sl = $('rSlider');
+  rTimer = setInterval(() => { sl.value = ++i; drawReplayTable(i); sfx.tick(); if (i >= R.rounds.length) stopReplay(); }, 700);
+  sl.value = 0; drawReplayTable(0);
+};
+$('copyReplay').onclick = () => navigator.clipboard.writeText(`${location.origin}/replay/${code}`).then(() => toast('Replay link copied'));
+$('againBtn').onclick = busy($('againBtn'), async () => {
+  const seats = R.players.length, bots = R.players.filter(p => p.kind === 'bot').length;
+  const opts = { seats, turnSeconds: R.turnSeconds || 30, name: store.name(), level: R.botLevel || botLevel };
+  if (bots === seats - 1) await createAndJoin({ ...opts, bots, start: true });
+  else await createAndJoin({ ...opts, bots: 0, start: false });
+});
+
+route();
+</script>
+</body>
+</html>

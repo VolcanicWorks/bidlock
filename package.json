@@ -1,0 +1,13 @@
+{
+  "name": "bidlock",
+  "version": "1.0.0",
+  "description": "A five-minute sealed-bid strategy game for humans and AI agents. Matching chips clash.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/run.js",
+    "balance": "node test/matrix.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}
